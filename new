@@ -1,0 +1,147 @@
+def add_rolling_features(data, features, window_size=5, preview_rows=10):
+    """
+    Adds rolling mean and std for selected features.
+    Prints sample of new columns for inspection.
+    """
+    data_new = data.copy()
+    
+    print(f"\n✅ Computing rolling mean & std with window size = {window_size}")
+    print(f"Selected features: {features}")
+    
+    for col in features:
+        mean_col = f"{col}_mean_{window_size}"
+        std_col = f"{col}_std_{window_size}"
+        
+        data_new[mean_col] = data[col].rolling(window=window_size, min_periods=1).mean()
+        data_new[std_col] = data[col].rolling(window=window_size, min_periods=1).std().fillna(0)
+        
+        # Print sample of the computed values
+        print(f"\n📈 Feature: {col}")
+        display(
+            data_new[[col, mean_col, std_col]].head(preview_rows)
+        )
+    
+    print("\n✅ Rolling feature computation complete.")
+    return data_new
+
+
+
+
+
+# ==========================================
+# 1️⃣ Import Libraries
+# ==========================================
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# ==========================================
+# 2️⃣ Load Data
+# ==========================================
+# Replace with your actual CSV file name
+data = pd.read_csv("your_data.csv")
+
+# Quick check
+print("Data shape:", data.shape)
+print("Columns:", data.columns.tolist())
+print(data.head())
+
+# ==========================================
+# 3️⃣ Define Rolling Feature Function
+# ==========================================
+def add_rolling_features(data, features, window_size=5):
+    """
+    Adds rolling mean and rolling std features to selected columns.
+    Applies rolling within each target group if possible.
+    """
+    data_new = data.copy()
+    
+    # Optional: apply rolling within each 'targetID' or 'Object' if your data is grouped
+    # Here we'll just apply globally (row by row in order)
+    for col in features:
+        data_new[f"{col}_mean_{window_size}"] = (
+            data[col].rolling(window=window_size, min_periods=1).mean()
+        )
+        data_new[f"{col}_std_{window_size}"] = (
+            data[col].rolling(window=window_size, min_periods=1).std().fillna(0)
+        )
+    return data_new
+
+# ==========================================
+# 4️⃣ Select Features and Apply Rolling
+# ==========================================
+selected_features = ['El', 'RCSinst_dB', 'SNRinst_dB']  # your most discriminative ones
+window_size = 5
+
+data_enhanced = add_rolling_features(data, selected_features, window_size)
+
+# ==========================================
+# 5️⃣ Prepare Features (X) and Target (y)
+# ==========================================
+target_col = 'Type'
+
+# Exclude non-numeric or identifier columns
+exclude_cols = ['time_s', 'Object', 'Size', 'Type']  # adjust if you have others
+
+# Original features dataset
+X_orig = data.drop(columns=exclude_cols, errors='ignore')
+y = data[target_col]
+
+# Enhanced dataset (original + new rolling features)
+X_enhanced = data_enhanced.drop(columns=exclude_cols, errors='ignore')
+
+# ==========================================
+# 6️⃣ Train/Test Split
+# ==========================================
+X_train_A, X_test_A, y_train, y_test = train_test_split(
+    X_orig, y, test_size=0.3, random_state=42, stratify=y
+)
+
+X_train_B, X_test_B, _, _ = train_test_split(
+    X_enhanced, y, test_size=0.3, random_state=42, stratify=y
+)
+
+# ==========================================
+# 7️⃣ Train Naive Bayes Models
+# ==========================================
+nb_A = GaussianNB()
+nb_A.fit(X_train_A, y_train)
+
+nb_B = GaussianNB()
+nb_B.fit(X_train_B, y_train)
+
+# ==========================================
+# 8️⃣ Evaluate Performance
+# ==========================================
+y_pred_A = nb_A.predict(X_test_A)
+y_pred_B = nb_B.predict(X_test_B)
+
+print("=== Model A: Original Features ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_A))
+print(classification_report(y_test, y_pred_A))
+
+print("\n=== Model B: Original + Rolling Features ===")
+print("Accuracy:", accuracy_score(y_test, y_pred_B))
+print(classification_report(y_test, y_pred_B))
+
+# ==========================================
+# 9️⃣ Visualize Confusion Matrices
+# ==========================================
+fig, ax = plt.subplots(1, 2, figsize=(14, 5))
+
+sns.heatmap(confusion_matrix(y_test, y_pred_A), annot=True, fmt='d', cmap='Blues', ax=ax[0])
+ax[0].set_title("Original Features")
+ax[0].set_xlabel("Predicted")
+ax[0].set_ylabel("True")
+
+sns.heatmap(confusion_matrix(y_test, y_pred_B), annot=True, fmt='d', cmap='Greens', ax=ax[1])
+ax[1].set_title("Original + Rolling Mean/Std Features")
+ax[1].set_xlabel("Predicted")
+ax[1].set_ylabel("True")
+
+plt.tight_layout()
+plt.show()
