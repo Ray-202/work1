@@ -1,30 +1,35 @@
-print("=== Cross-Validation Accuracy ===")
-print(f"Model A (Original Features): {scores_A.mean():.4f} ± {scores_A.std():.4f}")
-print(f"Model B (Original + Rolling Features): {scores_B.mean():.4f} ± {scores_B.std():.4f}")
+# Define the window size for rolling mean
+window_size = 5  # You can adjust this
 
-# =====================================================
-# 3️⃣ Learning Curve visualization
-# =====================================================
-def plot_learning_curve(model, X, y, title):
-    train_sizes, train_scores, test_scores = learning_curve(
-        model, X, y, cv=cv, scoring='accuracy',
-        train_sizes=np.linspace(0.1, 1.0, 10), n_jobs=-1
-    )
+# Calculate rolling mean for the 3 most discriminative features
+data['El_rolling_mean'] = data.groupby('targetID')['El'].transform(
+    lambda x: x.rolling(window=window_size, min_periods=1).mean()
+)
 
-    # Compute mean and std
-    train_mean = np.mean(train_scores, axis=1)
-    test_mean = np.mean(test_scores, axis=1)
-    train_std = np.std(train_scores, axis=1)
-    test_std = np.std(test_scores, axis=1)
+data['RCSinst_dB_rolling_mean'] = data.groupby('targetID')['RCSinst_dB'].transform(
+    lambda x: x.rolling(window=window_size, min_periods=1).mean()
+)
 
-    # Plot
-    plt.figure(figsize=(8,6))
-    plt.title(title)
-    plt.plot(train_sizes, train_mean, label='Training score', marker='o')
-    plt.plot(train_sizes, test_mean, label='Validation score', marker='s')
-    plt.fill_between(train_sizes, train_mean - train_std, train_mean + train_std, alpha=0.2)
-    plt.fill_between(train_sizes, test_mean - test_std, test_mean + test_std, alpha=0.2)
-    plt.xlabel('Training Set Size')
-    plt.ylabel('Accuracy')
-    plt.legend(loc='best')
-    plt.grid(True)
+data['SNRinst_dB_rolling_mean'] = data.groupby('targetID')['SNRinst_dB'].transform(
+    lambda x: x.rolling(window=window_size, min_periods=1).mean()
+)
+
+# Now prepare your features with the new rolling mean columns
+X_new = data[['time_s', 'Az', 'El', 'range_m', 'aspect_deg', 'length_m', 
+              'RCSinst_dB', 'SNRinst_dB',
+              'El_rolling_mean', 'RCSinst_dB_rolling_mean', 'SNRinst_dB_rolling_mean']]
+y = data['Type']
+
+# Split and train
+X_train_new, X_test_new, y_train_new, y_test_new = train_test_split(
+    X_new, y, test_size=0.2, random_state=42
+)
+
+model_new = GaussianNB()
+model_new.fit(X_train_new, y_train_new)
+
+# Predictions and classification report
+y_pred_new = model_new.predict(X_test_new)
+print("=== CLASSIFICATION REPORT (WITH ROLLING MEANS) ===")
+print(classification_report(y_test_new, y_pred_new))
+print(f"\nAccuracy: {accuracy_score(y_test_new, y_pred_new):.4f}")
