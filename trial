@@ -1,35 +1,35 @@
-# Define the window size for rolling mean
-window_size = 5  # You can adjust this
+# For each of your 3 discriminative features, calculate multiple statistics
+for feature in ['El', 'RCSinst_dB', 'SNRinst_dB']:
+    # Rolling mean (you already have this)
+    data[f'{feature}_rolling_mean'] = data.groupby('targetID')[feature].transform(
+        lambda x: x.rolling(window=window_size, min_periods=1).mean()
+    )
+    
+    # Rolling standard deviation (captures variability)
+    data[f'{feature}_rolling_std'] = data.groupby('targetID')[feature].transform(
+        lambda x: x.rolling(window=window_size, min_periods=1).std()
+    )
+    
+    # Rolling min/max (captures range)
+    data[f'{feature}_rolling_min'] = data.groupby('targetID')[feature].transform(
+        lambda x: x.rolling(window=window_size, min_periods=1).min()
+    )
+    
+    data[f'{feature}_rolling_max'] = data.groupby('targetID')[feature].transform(
+        lambda x: x.rolling(window=window_size, min_periods=1).max()
+    )
 
-# Calculate rolling mean for the 3 most discriminative features
-data['El_rolling_mean'] = data.groupby('targetID')['El'].transform(
-    lambda x: x.rolling(window=window_size, min_periods=1).mean()
-)
-
-data['RCSinst_dB_rolling_mean'] = data.groupby('targetID')['RCSinst_dB'].transform(
-    lambda x: x.rolling(window=window_size, min_periods=1).mean()
-)
-
-data['SNRinst_dB_rolling_mean'] = data.groupby('targetID')['SNRinst_dB'].transform(
-    lambda x: x.rolling(window=window_size, min_periods=1).mean()
-)
-
-# Now prepare your features with the new rolling mean columns
-X_new = data[['time_s', 'Az', 'El', 'range_m', 'aspect_deg', 'length_m', 
-              'RCSinst_dB', 'SNRinst_dB',
-              'El_rolling_mean', 'RCSinst_dB_rolling_mean', 'SNRinst_dB_rolling_mean']]
+# Now train with all these new features
+rolling_features = [col for col in data.columns if 'rolling' in col]
+X_new = data[rolling_features]
 y = data['Type']
 
-# Split and train
+# Train and evaluate
 X_train_new, X_test_new, y_train_new, y_test_new = train_test_split(
     X_new, y, test_size=0.2, random_state=42
 )
-
 model_new = GaussianNB()
 model_new.fit(X_train_new, y_train_new)
-
-# Predictions and classification report
 y_pred_new = model_new.predict(X_test_new)
-print("=== CLASSIFICATION REPORT (WITH ROLLING MEANS) ===")
-print(classification_report(y_test_new, y_pred_new))
-print(f"\nAccuracy: {accuracy_score(y_test_new, y_pred_new):.4f}")
+
+print(f"Accuracy with multiple rolling statistics: {accuracy_score(y_test_new, y_pred_new):.4f}")
