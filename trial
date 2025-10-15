@@ -33,3 +33,42 @@ model_new.fit(X_train_new, y_train_new)
 y_pred_new = model_new.predict(X_test_new)
 
 print(f"Accuracy with multiple rolling statistics: {accuracy_score(y_test_new, y_pred_new):.4f}")
+
+
+
+
+
+# Create X_new2 with BOTH original features AND all smoothed features
+original_features = ['time_s', 'Az', 'El', 'range_m', 'aspect_deg', 'length_m', 
+                     'RCSinst_dB', 'SNRinst_dB']
+rolling_features = [col for col in data.columns if 'rolling' in col]
+
+# Combine original and rolling features
+all_features = original_features + rolling_features
+X_new2 = data[all_features]
+
+# Check for NaN and fill if needed
+print(f"NaN values in X_new2: {X_new2.isna().sum().sum()}")
+X_new2 = X_new2.fillna(0)
+
+y2 = data['Type']
+
+# Train and evaluate
+X_train_new2, X_test_new2, y_train_new2, y_test_new2 = train_test_split(
+    X_new2, y2, test_size=0.2, random_state=42
+)
+
+model_new2 = GaussianNB()
+model_new2.fit(X_train_new2, y_train_new2)
+
+y_pred_new2 = model_new2.predict(X_test_new2)
+
+print("=== CLASSIFICATION REPORT (ORIGINAL + ALL SMOOTHED FEATURES) ===")
+print(classification_report(y_test_new2, y_pred_new2))
+print(f"\nAccuracy: {accuracy_score(y_test_new2, y_pred_new2):.4f}")
+
+# Summary comparison
+print("\n=== COMPARISON ===")
+print(f"Part 1 - Original features only: 0.58")
+print(f"Part 2 - Smoothed features only (mean/std/min/max): {accuracy_score(y_test_new, y_pred_new):.4f}")
+print(f"Part 2 Alternative - Original + Smoothed: {accuracy_score(y_test_new2, y_pred_new2):.4f}")
